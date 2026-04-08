@@ -243,13 +243,23 @@ function setTestCount(val){ const input=document.getElementById("testCount"); in
 
 // Експорт/Імпорт
 function exportData(){ let blob=new Blob([JSON.stringify(questions)],{type:"application/json"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="backup.json"; a.click(); }
+let originalFileName = ""; // зберігаємо назву першого завантаженого файлу
+
 function importData(e){
-  // 1️⃣ Автоматичний експорт поточних даних
+  const file = e.target.files[0];
+  if(!file) return;
+
+  // Якщо ще немає назви оригіналу — зберігаємо її
+  if(!originalFileName){
+    originalFileName = file.name;
+  }
+
+  // 1️⃣ Автоматичний експорт поточних даних з тією ж назвою файлу
   if(questions.length > 0){
     let blob = new Blob([JSON.stringify(questions)], {type:"application/json"});
     let a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "backup_before_import.json"; // файл зберігається на телефон
+    a.download = originalFileName; // використовуємо назву першого файлу
     a.click();
   }
 
@@ -269,7 +279,7 @@ function importData(e){
       alert("Помилка при імпорті файлу: " + err);
     }
   };
-  reader.readAsText(e.target.files[0]);
+  reader.readAsText(file);
 }
 function clearSearch(){ if(document.getElementById("searchQuestion")){document.getElementById("searchQuestion").value=""; renderQuestions();} }
 function shuffle(a){ return a.sort(()=>Math.random()-0.5); }
