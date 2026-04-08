@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vocabulary Trainer</title>
+<style>
+body { font-family:-apple-system, sans-serif; margin:0; padding:0; background:#f5f5f5; }
+header { background:#007AFF; color:white; padding:20px; text-align:center; font-size:24px; font-weight:bold; position:relative; }
+.container { display:flex; height:calc(100vh - 70px); }
+.sidebar { width:0; overflow-x:hidden; transition:0.3s; background:#fff; border-right:1px solid #ccc; padding:20px 0; box-shadow:2px 0 5px rgba(0,0,0,0.1); }
+.sidebar.open { width:300px; }
+.sidebar h3 { padding:10px 20px; margin:0; cursor:pointer; background:#f0f0f0; }
+.sidebar .card { padding:10px 20px; display:none; }
+.sidebar input, .sidebar select, .sidebar button { width:100%; padding:8px; margin:5px 0; border-radius:6px; border:1px solid #ccc; box-sizing:border-box; }
+.sidebar button { background:#007AFF; color:white; border:none; cursor:pointer; }
+.main { flex:1; padding:20px; overflow-y:auto; }
+.main button { background:#007AFF; color:white; border:none; padding:10px; margin:5px 0; width:200px; border-radius:8px; cursor:pointer; }
+.card { background:white; padding:15px; border-radius:12px; margin-bottom:15px; }
+.result-item { padding:8px; margin-bottom:5px; border-radius:6px; }
+.result-item.good { background:#c8f7c5; }
+.result-item.medium { background:#fff3b0; }
+.result-item.bad { background:#f7c5c5; }
+#testArea input { width:calc(100% - 20px); padding:10px; margin:5px 0; font-size: 16px;}
+input, select, textarea { font-size: 16px; }
+#testArea button { margin-top:5px; }
+</style>
+</head>
+<body>
+
+<header>
+  <button id="menuBtn" style="position:absolute; top:20px; left:5px;">☰ Меню</button>
+  📚 Vocabulary Trainer
+</header>
+
+<div class="container">
+  <div class="sidebar" id="sidebar">
+    <h3 id="addWordHeader">➕ Додавання слова</h3>
+    <div class="card" id="addCard">
+      <input id="ua" placeholder="Українське слово">
+      <input id="en" placeholder="Англійський переклад">
+      <button id="addBtn">Додати</button>
+    </div>
+
+    <h3 id="wordBaseHeader">📖 База слів</h3>
+    <div class="card" id="wordBaseCard">
+      <input id="searchWord" placeholder="Пошук слова">
+      <button id="clearSearchBtn">Очистити пошук</button>
+      <div id="wordStats" style="font-weight:bold;margin-bottom:10px;"></div>
+      <div id="wordList"></div>
+    </div>
+
+    <h3 id="exportHeader">📎 Експорт/Імпорт</h3>
+    <div class="card" id="exportCard">
+      <button id="exportBtn">📥 Експорт</button>
+      <input type="file" id="importFile">
+    </div>
+
+    <button id="reloadBtn">🔄 Перезавантажити PWA</button>
+  </div>
+
+  <div class="main">
+    <button id="testToggleBtn">🧠 Вибір тестів</button>
+    <div class="card" id="testCard" style="display:none;">
+      <button id="test20Btn">20 слів</button>
+      <button id="test50Btn">50 слів</button>
+      <button id="customTestBtn">Довільна</button>
+      <input id="testCount" type="number" placeholder="Кількість слів у тесті">
+      <select id="testType">
+        <option value="all">Всі</option>
+        <option value="good">Добрі 🟢</option>
+        <option value="medium">Середні 🟡</option>
+        <option value="bad">Погані 🔴</option>
+      </select>
+      <button id="startTestBtn">Почати тест</button>
+      <button id="weakTestBtn">Слабкі слова</button>
+    </div>
+
+    <div id="testArea" class="card" style="display:none;"></div>
+
+    <div id="resultsBox" class="card" style="display:none;">
+      <h3>Результати</h3>
+      <button id="retryBadBtn">🔁 Повторити слабкі</button>
+      <button id="filterAllBtn">Всі</button>
+      <button id="filterBadBtn">🔴 Погані</button>
+      <button id="filterMediumBtn">🟡 Середні</button>
+      <button id="filterGoodBtn">🟢 Добрі</button>
+      <div id="resultsList" style="margin-top:10px;"></div>
+      <button id="closeResultsBtn">Закрити</button>
+    </div>
+  </div>
+</div>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script  >
+
+
+// ===== Firebase Config =====
+const firebaseConfig = {
+  apiKey: "AIzaSyDJ62MDMp9T82_G20NHs6n_XfGILiEsLlU",
+  authDomain: "learn-english-48994.firebaseapp.com",
+  projectId: "learn-english-48994",
+  storageBucket: "learn-english-48994.firebasestorage.app",
+  messagingSenderId: "395379379531",
+  appId: "1:395379379531:web:7b2deb76d426d986d82cce",
+  measurementId: "G-DJ56FQXP03"
+};
+
+// Ініціалізація Firebase
+// 1. Ініціалізація
+firebase.initializeApp(firebaseConfig);
+
+// 2. Firestore
+const db = firebase.firestore();
+
+// 3. Auth
+const auth = firebase.auth();
+
+// 4. Стан авторизації
+auth.onAuthStateChanged(user => {
+  if(user){
+    console.log("Авторизований як:", user.email);
+    loadWordsFromFirestore(); // твоя функція завантаження слів
+  } else {
+    console.log("Не авторизований. Вхід обов'язковий.");
+    // Можна показати форму входу
+  }
+});
+
+signInWithEmailAndPassword(auth, email, password)
+  .then((userCredential) => {
+    console.log("Вхід успішний!", userCredential.user.uid);
+  })
+  .catch((error) => {
+    console.error(error.code, error.message);
+  });
+
+function loadWordsFromDB() {
+    db.collection("words").get()
+      .then(snapshot => {
+          words = []; // очищаємо масив
+          snapshot.forEach(doc => {
+              words.push(doc.data());
+          });
+          renderWords();
+          console.log("Завантажено:", words);
+      })
+      .catch(err => console.error(err));
+}
+
+// Виклик при старті
+window.addEventListener("DOMContentLoaded", () => {
+    loadWordsFromDB();
+});
+
+// ===== Sidebar toggle =====
+const sidebar = document.getElementById("sidebar");
+document.getElementById("menuBtn").addEventListener("click", () => sidebar.classList.toggle("open"));
+document.getElementById("addWordHeader").addEventListener("click", () => toggleCard('addCard'));
+document.getElementById("wordBaseHeader").addEventListener("click", () => toggleCard('wordBaseCard'));
+document.getElementById("exportHeader").addEventListener("click", () => toggleCard('exportCard'));
+document.getElementById("testToggleBtn").addEventListener("click", () => toggleCard('testCard'));
+
+function toggleCard(id){
+    const c = document.getElementById(id);
+    c.style.display = c.style.display === "block" ? "none" : "block";
+}
+
+// ===== Дані =====
+let words = JSON.parse(localStorage.getItem("words")||"[]");
+let userAnswers = [];
+let testList = [];
+let totalQuestions = 0;
+let currentIndex = 0;
+
+// ===== Додавання слова =====
+function addWord() {
+    const ua = document.getElementById("ua").value.trim();
+    const en = document.getElementById("en").value.trim();
+    if(!ua || !en) return;
+
+    const newWord = {ua, en, correct:0, wrong:0};
+    words.push(newWord);
+    renderWords();
+
+    db.collection("words").doc(ua).set(newWord)
+      .then(() => console.log("Додано до Firestore"))
+      .catch(err => console.error(err));
+
+    document.getElementById("ua").value = "";
+    document.getElementById("en").value = "";
+}
+
+// ===== Пошук =====
+document.getElementById("searchWord").addEventListener("input", renderWords);
+document.getElementById("clearSearchBtn").addEventListener("click", () => {
+    document.getElementById("searchWord").value = "";
+    renderWords();
+});
+
+// ===== Рендер слів =====
+function renderWords(){
+    const search = document.getElementById("searchWord").value.trim().toLowerCase();
+    const list = document.getElementById("wordList");
+    const statsDiv = document.getElementById("wordStats");
+    list.innerHTML = "";
+    let good=0,medium=0,bad=0;
+    words.forEach(w=>{
+        const score = (w.correct||0)-(w.wrong||0);
+        if(score>=5) good++;
+        else if(score>=0) medium++;
+        else bad++;
+    });
+    statsDiv.innerText = `Всього слів: ${words.length} | Добрі: ${good} 🟢 | Середні: ${medium} 🟡 | Погані: ${bad} 🔴`;
+
+    words.forEach((w,i)=>{
+        if(search && !w.ua.toLowerCase().includes(search) && !w.en.toLowerCase().includes(search)) return;
+        const div = document.createElement("div");
+        div.style.background = getColor(w);
+        div.style.marginBottom = "10px";
+        div.style.padding = "10px";
+        div.style.borderRadius = "8px";
+        div.innerHTML = `<b>${w.ua}</b> — ${w.en} 
+            <button onclick="editWord(${i})">✏️</button>
+            <button onclick="deleteWord(${i})">🗑</button>`;
+        list.appendChild(div);
+    });
+}
+function getColor(w){
+    const score = (w.correct||0)-(w.wrong||0);
+    if(score>=5) return "#c8f7c5";
+    if(score>=0) return "#fff3b0";
+    return "#f7c5c5";
+}
+function deleteWord(i){
+    const word = words[i];
+    if(confirm("Видалити слово?")){
+        // Видаляємо з масиву
+        words.splice(i,1);
+        renderWords();
+        // Видаляємо з Firestore
+        db.collection("words").doc(word.ua).delete()
+          .then(()=>console.log("Видалено зі Firestore"))
+          .catch(err=>console.error(err));
+    }
+}
+
+
+function editWord(i){
+    const oldWord = words[i];
+    const newUa = prompt("Українське:", oldWord.ua);
+    const newEn = prompt("Англійське:", oldWord.en);
+    if(newUa && newEn){
+        // Видаляємо старий документ, якщо змінилась ключова назва
+        if(newUa !== oldWord.ua){
+            db.collection("words").doc(oldWord.ua).delete();
+        }
+
+        // Оновлюємо масив
+        words[i] = {ua: newUa, en: newEn, correct: oldWord.correct, wrong: oldWord.wrong};
+        renderWords();
+
+        // Зберігаємо оновлене слово у Firestore
+        db.collection("words").doc(newUa).set(words[i])
+          .then(()=>console.log("Оновлено у Firestore"))
+          .catch(err=>console.error(err));
+    }
+}
+
+// ===== Експорт/Імпорт =====
+document.getElementById("exportBtn").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(words)], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "backup.json";
+    a.click();
+});
+document.getElementById("importFile").addEventListener("change", e=>{
+    const reader = new FileReader();
+    reader.onload = function(){ 
+        words = JSON.parse(reader.result); 
+        localStorage.setItem("words", JSON.stringify(words));
+        renderWords();
+        alert("Імпортовано!");
+    };
+    reader.readAsText(e.target.files[0]);
+});
+
+// ===== Тести =====
+document.getElementById("startTestBtn").addEventListener("click", startTest);
+document.getElementById("weakTestBtn").addEventListener("click", startWeakTest);
+document.getElementById("test20Btn").addEventListener("click",()=>document.getElementById("testCount").value=20);
+document.getElementById("test50Btn").addEventListener("click",()=>document.getElementById("testCount").value=50);
+document.getElementById("customTestBtn").addEventListener("click",()=>document.getElementById("testCount").value="");
+
+function startTest(){
+    userAnswers=[];
+    let count = parseInt(document.getElementById("testCount").value);
+    if(!count || count<=0) count = words.length;
+    const type = document.getElementById("testType").value;
+    let filtered = [...words];
+    if(type!=="all"){
+        filtered = filtered.filter(w=>{
+            const score = (w.correct||0)-(w.wrong||0);
+            if(type==="good") return score>=5;
+            if(type==="medium") return score>=0 && score<5;
+            if(type==="bad") return score<0;
+        });
+    }
+    filtered = shuffle(filtered);
+    if(count<filtered.length) filtered = filtered.slice(0,count);
+    document.getElementById("testCard").style.display="none";
+    runTest(filtered);
+}
+
+function startWeakTest(){
+    let weak = [...words].sort((a,b)=> (b.wrong-b.correct)-(a.wrong-a.correct));
+    runTest(weak.slice(0,10));
+}
+
+function runTest(list){
+  if(list.length === 0){ 
+      alert("Немає слів для тесту!"); 
+      return; 
+  }
+  testList = list;
+  totalQuestions = list.length;
+  currentIndex = 0;
+  document.getElementById("testArea").style.display = "block";
+  nextWord();
+}
+
+function nextWord(){
+    if(currentIndex >= testList.length){ showResults(); document.getElementById("testArea").style.display="none"; return; }
+    const w = testList[currentIndex];
+    const area = document.getElementById("testArea");
+    area.innerHTML = `<div style="font-size:14px; opacity:0.7; margin-bottom:5px;">Питання ${currentIndex+1} / ${totalQuestions}</div>
+        <h3>${w.ua}</h3>`;
+    const input = document.createElement("input");
+    input.id = "answer"; input.placeholder="Введи переклад";
+    area.appendChild(input);
+    const btn = document.createElement("button");
+    btn.textContent="Далі";
+    btn.addEventListener("click", ()=>check(w));
+    area.appendChild(btn);
+}
+
+function check(wordObj){
+  const val = document.getElementById("answer").value.trim().toLowerCase();
+  let status, message;
+
+  if(val === wordObj.en.toLowerCase()){
+    wordObj.correct = (wordObj.correct || 0) + 1;
+    status = "good";
+    message = "✅ Правильно!";
+  } else if(val !== ""){
+    wordObj.wrong = (wordObj.wrong || 0) + 1;
+    status = "medium";
+    message = `❌ Неправильно! Правильно: ${wordObj.en}`;
+  } else {
+    wordObj.wrong = (wordObj.wrong || 0) + 1;
+    status = "bad";
+    message = `❌ Пусто! Правильно: ${wordObj.en}`;
+  }
+
+  // Записуємо у Firestore
+  db.collection("words").doc(wordObj.ua).set(wordObj)
+    .then(()=> console.log("Прогрес збережено"))
+    .catch(err => console.error(err));
+
+  userAnswers.push({
+    question: wordObj.ua,
+    correct: wordObj.en,
+    user: val,
+    status: status
+  });
+
+  renderWords();
+  showFeedback(message);
+  currentIndex++;
+}
+
+// Показ повідомлення після відповіді
+function showFeedback(text){
+  const area = document.getElementById("testArea");
+  
+  // Очищаємо попередні повідомлення
+  const oldMsg = document.getElementById("feedbackMsg");
+  if(oldMsg) oldMsg.remove();
+
+  let msg = document.createElement("div");
+  msg.id = "feedbackMsg";
+  msg.style.marginTop = "10px";
+  msg.style.fontWeight = "bold";
+  msg.innerText = text;
+
+  // Кнопка "Далі"
+  let btn = document.createElement("button");
+  btn.textContent = "Далі";
+  btn.style.marginTop = "5px";
+  btn.onclick = nextWord;
+
+  area.appendChild(msg);
+  area.appendChild(btn);
+}
+
+function showResults(){
+    const box = document.getElementById("resultsBox");
+    const list = document.getElementById("resultsList");
+    list.innerHTML="";
+    userAnswers.forEach(item=>{
+        const div=document.createElement("div");
+        div.className="result-item "+item.status;
+        div.innerHTML=`<b>${item.question}</b><br>Ти: ${item.user||"—"}<br>Правильно: ${item.correct}`;
+        list.appendChild(div);
+    });
+    box.style.display="block";
+}
+
+// ===== Retry слабкі =====
+document.getElementById("retryBadBtn").addEventListener("click", ()=>{
+    const retryList = userAnswers.filter(i=>i.status!=="good").map(i=>words.find(w=>w.ua===i.question)).filter(Boolean);
+    if(retryList.length===0){ alert("Немає слабких слів 👍"); return; }
+    testList = retryList; totalQuestions = retryList.length; currentIndex=0;
+    userAnswers=[];
+    document.getElementById("resultsBox").style.display="none";
+    document.getElementById("testArea").style.display="block";
+    nextWord();
+});
+
+// ===== Фільтр результатів =====
+document.getElementById("filterAllBtn").addEventListener("click", ()=>filterResults("all"));
+document.getElementById("filterBadBtn").addEventListener("click", ()=>filterResults("bad"));
+document.getElementById("filterMediumBtn").addEventListener("click", ()=>filterResults("medium"));
+document.getElementById("filterGoodBtn").addEventListener("click", ()=>filterResults("good"));
+document.getElementById("closeResultsBtn").addEventListener("click", ()=>document.getElementById("resultsBox").style.display="none");
+
+function filterResults(type){
+    const list=document.getElementById("resultsList");
+    list.innerHTML="";
+    let filtered = userAnswers;
+    if(type!=="all") filtered=userAnswers.filter(i=>i.status===type);
+    filtered.forEach(item=>{
+        const div=document.createElement("div");
+        div.className="result-item "+item.status;
+        div.innerHTML=`<b>${item.question}</b><br>Ти: ${item.user||"—"}<br>Правильно: ${item.correct}`;
+        list.appendChild(div);
+    });
+}
+
+// ===== Utility =====
+function shuffle(a){ return a.sort(()=>Math.random()-0.5); }
+
+function saveWordsToFirestore() {
+    words.forEach(async (w) => {
+        await db.collection("words").doc(w.ua).set(w);
+    });
+}
+
+function loadWordsFromFirestore() {
+    db.collection("words").get().then(snapshot => {
+        words = snapshot.docs.map(doc => doc.data());
+        renderWords();
+    });
+}
+
+// ===== Показати слова на старті =====
+renderWords();
+</script>
+
+</body>
+</html>
