@@ -62,6 +62,14 @@ header { background:#007AFF; color:white; padding:20px; text-align:center; font-
   <div class="main">
     <button onclick="toggleTestCard()">🧠 Вибір тестів</button>
     <div class="card" id="testCard" style="display:none;">
+      <div style="margin:10px 0;">
+       <label>Режим тесту:</label>
+       <select id="testMode">
+       <option value="random">Випадковий</option>
+       <option value="weak">Тільки слабкі 🔴</option>
+       <option value="adaptive">Адаптивний 🧠</option>
+       </select>
+       </div>
       <div>
         <button onclick="setTestCount(50)">50 питань</button>
         <button onclick="setTestCount(100)">100 питань</button>
@@ -118,13 +126,81 @@ function addQuestion(){
 // Тести
 function startTest(){
   userAnswers=[];
+
   let count = parseInt(document.getElementById("testCount").value);
   if(!count || count<=0) count = questions.length;
-  testList = shuffle([...questions]);
-  if(count < testList.length) testList = testList.slice(0,count);
+
+  const mode = document.getElementById("testMode").value;
+
+  let pool = [];
+
+  // =====================
+  // 🎲 ВИПАДКОВИЙ
+  // =====================
+  if(mode === "random"){
+    pool = shuffle([...questions]);
+  }
+
+  // =====================
+  // 🔴 ТІЛЬКИ СЛАБКІ
+  // =====================
+  if(mode === "weak"){
+    pool = questions.filter(q => (q.stats?.wrong||0) > (q.stats?.correct||0));
+
+    if(pool.length === 0){
+      alert("Немає слабких питань 👍");
+      return;
+    }
+
+    pool = shuffle(pool);
+  }
+
+  // =====================
+  // 🧠 АДАПТИВНИЙ
+  // =====================
+  if(mode === "adaptive"){
+
+    let weighted = questions.map(q=>{
+      let score = (q.stats?.wrong||0) - (q.stats?.correct||0);
+
+      // базова вага = 1 (щоб всі мали шанс)
+      let weight = Math.max(1, score + 2);
+
+      return {q, weight};
+    });
+
+    pool = [];
+
+    while(pool.length < Math.min(count, questions.length)){
+      let totalWeight = weighted.reduce((sum,w)=>sum+w.weight,0);
+      let r = Math.random() * totalWeight;
+
+      for(let i=0;i<weighted.length;i++){
+        r -= weighted[i].weight;
+
+        if(r <= 0){
+          pool.push(weighted[i].q);
+          weighted.splice(i,1); // без повторів
+          break;
+        }
+      }
+    }
+  }
+
+  // =====================
+  // ОБМЕЖЕННЯ
+  // =====================
+  if(count < pool.length){
+    pool = pool.slice(0,count);
+  }
+
+  testList = pool;
+
   document.getElementById("testCard").style.display="none";
+
   totalQuestions = testList.length;
   currentIndex = 0;
+
   nextQuestion();
 }
 
