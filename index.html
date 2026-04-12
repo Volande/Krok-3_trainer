@@ -334,30 +334,31 @@ function importData(e){
   const file = e.target.files[0];
   if(!file) return;
 
-  // Якщо ще немає назви оригіналу — зберігаємо її
-  if(!originalFileName){
-    originalFileName = file.name;
-  }
-
-  // 1️⃣ Автоматичний експорт поточних даних з тією ж назвою файлу
+  // 🟢 1. ЗБЕРІГАЄМО СТАРІ ДАНІ (якщо є)
   if(questions.length > 0){
+    let fileName = originalFileName || "backup.json";
+
     let blob = new Blob([JSON.stringify(questions)], {type:"application/json"});
     let a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = originalFileName; // використовуємо назву першого файлу
+    a.download = fileName;
     a.click();
   }
 
-  // 2️⃣ Видаляємо старі дані
+  // 🟡 2. ТЕПЕР оновлюємо назву (це вже новий файл)
+  originalFileName = file.name;
+  localStorage.setItem("fileName", originalFileName);
+
+  // 🔴 3. Чистимо старі дані
   questions = [];
   localStorage.removeItem("questions");
 
-  // 3️⃣ Завантажуємо новий файл
+  // 🔵 4. Імпорт нового
   let reader = new FileReader();
   reader.onload = function(){
     try {
       questions = JSON.parse(reader.result);
-      save(); // зберігаємо нові дані
+      save();
       renderQuestions();
       alert("Імпортовано нові дані успішно");
     } catch(err){
@@ -366,6 +367,7 @@ function importData(e){
   };
   reader.readAsText(file);
 }
+  
 function clearSearch(){ if(document.getElementById("searchQuestion")){document.getElementById("searchQuestion").value=""; renderQuestions();} }
 function shuffle(a){ return a.sort(()=>Math.random()-0.5); }
 
