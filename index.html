@@ -66,6 +66,7 @@ header { background:#007AFF; color:white; padding:20px; text-align:center; font-
        <label>Режим тесту:</label>
        <select id="testMode">
        <option value="random">Випадковий</option>
+       <option value="new">🆕 Нові</option>
        <option value="weak">Тільки слабкі 🔴</option>
        <option value="adaptive">Адаптивний 🧠</option>
        </select>
@@ -133,6 +134,20 @@ function startTest(){
   const mode = document.getElementById("testMode").value;
 
   let pool = [];
+
+  if(mode === "new"){
+  pool = questions.filter(q => 
+    (q.stats?.correct || 0) === 0 && 
+    (q.stats?.wrong || 0) === 0
+  );
+
+  if(pool.length === 0){
+    alert("Немає нових питань 👍");
+    return;
+  }
+
+  pool = shuffle(pool);
+}
 
   // =====================
   // 🎲 ВИПАДКОВИЙ
