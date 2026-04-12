@@ -65,8 +65,8 @@ header { background:#007AFF; color:white; padding:20px; text-align:center; font-
       <div style="margin:10px 0;">
        <label>Режим тесту:</label>
        <select id="testMode">
-       <option value="random">Випадковий</option>
-       <option value="new">🆕 Нові</option>
+       <option value="random">Випадковий 🎲</option>
+       <option value="new"> Нові 🆕</option>
        <option value="weak">Тільки слабкі 🔴</option>
        <option value="adaptive">Адаптивний 🧠</option>
        </select>
@@ -381,6 +381,48 @@ function importData(e){
     }
   };
   reader.readAsText(file);
+}
+async function hardReload(){
+  try {
+
+    // 🟢 0. ЗБЕРЕГТИ ПРОГРЕС ПЕРЕД ВСІМ
+    if(questions && questions.length > 0){
+      let fileName = (localStorage.getItem("fileName") || "backup.json");
+
+      let blob = new Blob([JSON.stringify(questions)], {type:"application/json"});
+      let a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName;
+      a.click();
+
+      // невелика пауза, щоб браузер встиг почати завантаження
+      await new Promise(res => setTimeout(res, 500));
+    }
+
+    // 🔵 1. Очистка кешу
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map(name => caches.delete(name)));
+    }
+
+    // 🔵 2. Видалення service workers
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (let reg of registrations) {
+        await reg.unregister();
+      }
+    }
+
+    // 🔴 3. Очистка localStorage (тепер безпечно, бо вже є backup)
+    localStorage.clear();
+
+    // 🔄 4. Reload
+    window.location.reload();
+
+  } catch (err) {
+    console.error("Hard reload error:", err);
+    alert("Помилка перезавантаження");
+  }
 }
   
 function clearSearch(){ if(document.getElementById("searchQuestion")){document.getElementById("searchQuestion").value=""; renderQuestions();} }
