@@ -317,9 +317,18 @@ function showFeedback(text){
 }
 function setTestCount(val){ const input=document.getElementById("testCount"); input.value=val===''?'':val; input.placeholder=val===''?"Введи кількість":input.placeholder; }
 
+  let originalFileName = localStorage.getItem("fileName") || ""
 // Експорт/Імпорт
-function exportData(){ let blob=new Blob([JSON.stringify(questions)],{type:"application/json"}); let a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="backup.json"; a.click(); }
-let originalFileName = ""; // зберігаємо назву першого завантаженого файлу
+function exportData(){
+  let fileName = originalFileName || "backup.json";
+
+  let blob = new Blob([JSON.stringify(questions)], {type:"application/json"});
+  let a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  a.click();
+}
+
 
 function importData(e){
   const file = e.target.files[0];
